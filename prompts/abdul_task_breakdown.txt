@@ -27,8 +27,13 @@ answers = [
     str          # A base64-encoded PNG image URI string starting with "data:image/png;base64,..."
 ]
 print(json.dumps(answers))
+
 After the code block, also provide a simulated example of the JSON array output, as if the code was run, e.g.:
 
 [1, "Titanic", 0.485782, "data:image/png;base64,iVBORw0KG... (truncated)"]
+When you generate the simulated JSON answer array after the code block, use realistic data. For this task, use the most likely real-world values for count, movie title, statistics, and example image string. For example:
+[1, "Titanic", 0.485782, "data:image/png;base64,iVBORw0KG...(truncated)"]
+
+Always infer the movie, year, count, or correlation using best known facts wherever possible for the given Wikipedia film task. Do not default to [0,"Avatar", ...] unless those are truly correct.
 
 
