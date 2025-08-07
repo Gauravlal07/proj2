@@ -27,5 +27,8 @@ answers = [
     str          # A base64-encoded PNG image URI string starting with "data:image/png;base64,..."
 ]
 print(json.dumps(answers))
+After the code block, also provide a simulated example of the JSON array output, as if the code was run, e.g.:
+
+[1, "Titanic", 0.485782, "data:image/png;base64,iVBORw0KG... (truncated)"]
 
 
