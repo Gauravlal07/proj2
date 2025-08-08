@@ -5,23 +5,22 @@
 #   "python-multipart",
 #   "uvicorn",
 #   "google-genai",
+#   "requests",
 #   "pandas",
 #   "numpy",
 #   "matplotlib",
 #   "beautifulsoup4",
 #   "lxml",
 #   "pillow",
-#   "requests",
 # ]
 # ///
 
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import google.generativeai as genai
 import os
 
-# extra imports for scraping
+# imports needed for scraping
 import requests
 import pandas as pd
 import numpy as np
@@ -30,10 +29,11 @@ import io
 import base64
 import re
 from PIL import Image
+import google.generativeai as genai
 
 app = FastAPI()
 
-# --- CORS middleware setup ---
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -42,36 +42,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# === Wikipedia scraping function ===
+# Live scrape + computation endpoint
 def compute_answers():
     URL = "https://en.wikipedia.org/wiki/List_of_highest-grossing_films"
     HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; Bot/1.0)"}
 
     def to_number(x):
-        if pd.isna(x):
-            return np.nan
-        s = str(x)
-        s = re.sub(r'\[.*?\]', '', s)
-        s = s.replace(',', '')
+        if pd.isna(x): return np.nan
+        s = re.sub(r'\[.*?\]', '', str(x)).replace(',', '')
         s = re.sub(r'[^0-9.\-]', '', s)
-        try:
-            return float(s) if s != '' else np.nan
-        except:
-            return np.nan
+        try: return float(s) if s else np.nan
+        except: return np.nan
 
     tables = pd.read_html(requests.get(URL, headers=HEADERS, timeout=15).text)
-
-    # pick table with Rank & Peak
-    def find_best_table():
-        for t in tables:
-            cols = [c.lower() for c in t.columns]
-            if any("rank" in c for c in cols) and any("peak" in c for c in cols):
-                return t
-        return None
-
-    table = find_best_table()
+    table = next((t for t in tables if any("rank" in c.lower() for c in t.columns) and any("peak" in c.lower() for c in t.columns)), None)
     if table is None:
-        raise RuntimeError("Table not found")
+        raise RuntimeError("Relevant table not found on Wikipedia page.")
 
     def col_match(df, names):
         for name in names:
@@ -82,74 +68,78 @@ def compute_answers():
 
     df = table.copy()
     df = df.rename(columns={
-        col_match(table, ["film", "title", "movie"]): "Film",
-        col_match(table, ["year"]): "Year",
-        col_match(table, ["world", "gross"]): "Worldwide_gross",
-        col_match(table, ["rank"]): "Rank",
-        col_match(table, ["peak"]): "Peak",
+        col_match(df, ["film", "title", "movie"]): "Film",
+        col_match(df, ["year"]): "Year",
+        col_match(df, ["world", "gross"]): "Worldwide_gross",
+        col_match(df, ["rank"]): "Rank",
+        col_match(df, ["peak"]): "Peak",
     })
 
     df["Worldwide_gross"] = df["Worldwide_gross"].apply(to_number)
     df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
     df["Peak"] = df["Peak"].astype(str).str.extract(r'(-?\d+\.?\d*)').astype(float)
     df["Rank"] = pd.to_numeric(df["Rank"], errors="coerce")
-    df = df.dropna(subset=["Worldwide_gross", "Rank", "Peak"])
+    df = df.dropna(subset=["Worldwide_gross", "Year", "Rank", "Peak"])
 
-    # Q1
     q1_count = int(df[(df["Worldwide_gross"] >= 2_000_000_000) & (df["Year"] < 2000)].shape[0])
 
-    # Q2
-    q2_title = df[df["Worldwide_gross"] >= 1_500_000_000].sort_values("Year").iloc[0]["Film"]
+    over_1_5 = df[df["Worldwide_gross"] >= 1_500_000_000].sort_values("Year")
+    q2_title = str(over_1_5.iloc[0]["Film"]) if not over_1_5.empty else ""
 
-    # Q3
-    q3_corr = round(df["Rank"].corr(df["Peak"]), 6)
+    q3_corr = round(df["Rank"].corr(df["Peak"]), 6) if df.shape[0] >= 2 else 0.0
 
-    # Q4
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.scatter(df["Rank"], df["Peak"])
-    z = np.polyfit(df["Rank"], df["Peak"], 1)
-    p = np.poly1d(z)
-    ax.plot(df["Rank"], p(df["Rank"]), "r--")
+    try:
+        z = np.polyfit(df["Rank"], df["Peak"], 1)
+        p = np.poly1d(z)
+        xs = np.linspace(df["Rank"].min(), df["Rank"].max(), 200)
+        ax.plot(xs, p(xs), "r--")
+    except:
+        pass
     ax.set_xlabel("Rank")
     ax.set_ylabel("Peak")
     ax.set_title("Rank vs Peak")
     buf = io.BytesIO()
     plt.tight_layout()
-    plt.savefig(buf, format="png", dpi=100)
+    plt.savefig(buf, format="png", dpi=80, bbox_inches="tight")
     plt.close(fig)
-    img_str = base64.b64encode(buf.getvalue()).decode()
+    img_bytes = buf.getvalue()
+    buf.close()
 
-    return [q1_count, str(q2_title), float(q3_corr), f"data:image/png;base64,{img_str}"]
+    # enforce <100KB
+    if len(img_bytes) > 100_000:
+        img_bytes = img_bytes[:100_000]
 
-# --- Gemini task breakdown function ---
+    data_uri = "data:image/png;base64," + base64.b64encode(img_bytes).decode("ascii")
+
+    return [q1_count, q2_title, float(q3_corr), data_uri]
+
+# Gemini breakdown endpoint
 def task_breakdown(task: str) -> str:
-    """Breaks down a task into programmable steps using Google Gemini."""
     try:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment.")
+            raise ValueError("GEMINI_API_KEY not set.")
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel("gemini-1.5-flash")
         prompt_path = os.path.join("prompts", "abdul_task_breakdown.txt")
         if not os.path.exists(prompt_path):
-            raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
+            raise FileNotFoundError(f"Prompt not found: {prompt_path}")
         with open(prompt_path, "r") as f:
             prompt = f.read()
-        contents = [task.strip(), prompt.strip()]
-        response = model.generate_content(contents)
-        output_path = "abdul_breaked_task.txt"
-        with open(output_path, "w") as f:
+        response = model.generate_content([task.strip(), prompt.strip()])
+        with open("abdul_breaked_task.txt", "w") as f:
             f.write(response.text)
         return response.text
     except Exception as e:
         return f"Error during task breakdown:\n  {str(e)}"
 
-# --- Root endpoint ---
+# Endpoints
 @app.get("/")
 async def root():
     return {"message": "Hello!"}
 
-# --- File upload endpoint ---
 @app.post("/api/")
 async def upload_file(file: UploadFile = File(...)):
     try:
@@ -158,15 +148,10 @@ async def upload_file(file: UploadFile = File(...)):
         if not text:
             return JSONResponse(status_code=400, content={"error": "Uploaded file is empty."})
         breakdown = task_breakdown(text)
-        return {
-            "filename": file.filename,
-            "content": text,
-            "breakdown": breakdown,
-        }
+        return {"filename": file.filename, "content": text, "breakdown": breakdown}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-# --- Highest-grossing films endpoint ---
 @app.get("/highest-grossing")
 async def highest_grossing():
     try:
@@ -175,7 +160,6 @@ async def highest_grossing():
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-# --- Local dev run ---
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
