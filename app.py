@@ -115,23 +115,36 @@ def compute_answers():
 
     return [q1_count, q2_title, float(q3_corr), data_uri]
 
-# Gemini breakdown endpoint
+from prompt_preprocessor import preprocess_prompt
+
 def task_breakdown(task: str) -> str:
     try:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY not set.")
+            raise ValueError("GEMINI_API_KEY not found in environment.")
+
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel("gemini-1.5-flash")
+
         prompt_path = os.path.join("prompts", "abdul_task_breakdown.txt")
         if not os.path.exists(prompt_path):
-            raise FileNotFoundError(f"Prompt not found: {prompt_path}")
+            raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
+
         with open(prompt_path, "r") as f:
             prompt = f.read()
-        response = model.generate_content([task.strip(), prompt.strip()])
-        with open("abdul_breaked_task.txt", "w") as f:
+
+        # NEW: rewrite incoming question
+        task = preprocess_prompt(task)
+
+        contents = [task.strip(), prompt.strip()]
+        response = model.generate_content(contents)
+
+        output_path = "abdul_breaked_task.txt"
+        with open(output_path, "w") as f:
             f.write(response.text)
+
         return response.text
+
     except Exception as e:
         return f"Error during task breakdown:\n  {str(e)}"
 
