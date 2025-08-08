@@ -20,3 +20,6 @@ Step 8: Collect the answers as a list in this order: [Q1, Q2, Q3, Q4 (image URI)
 
 Do NOT generate or show Python code in this response.  
 Keep the steps clear and implementation ready for a developer.
+- Always number the steps sequentially in the same order the outputs are expected.
+- For each step, specify the input data, the operation, and the output/result.
+- The steps must contain all information needed for a developer to implement without further clarification.
