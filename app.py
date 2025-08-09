@@ -108,6 +108,13 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+@app.get("/highest-grossing")
+async def highest_grossing():
+    try:
+        return compute_answers()  # returns [int, str, float, str]
+    except Exception as e:
+        return ["Error", "N/A", 0.0, ""]
+
 # Local dev run
 if __name__ == "__main__":
     import uvicorn
