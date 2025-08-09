@@ -29,11 +29,8 @@ answers = [
 
 print(json.dumps(answers))
 
-After the code block, provide a single line containing a simulated example of the JSON array output, as if the code was run. Always use the most realistic, canonical values for the Wikipedia highest-grossing-films dataset as of 2024. Use:
+After the code block, provide a single line containing a simulated example of the JSON array output, as if the code was run. Always use the most realistic, canonical values for the Wikipedia highest-grossing-films dataset as of 2024. 
 
-[2, "Titanic", 0.485782, "data:image/png;base64,iVBORw0KG...(truncated)"]
-
-Do not invent answers—use these exact values unless explicitly told otherwise in the user query.
 
 Always infer the movie, year, count, or correlation using best known facts wherever possible for the given Wikipedia film task. Do not default to [0,"Avatar", ...] unless those are truly correct.
 
