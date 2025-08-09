@@ -5,7 +5,7 @@ Your job is to write a Python script that answers the user’s question by fetch
 Follow these rules step-by-step:
 
 1. Extract all explicit parameters from the question:
-   - Numerical thresholds (e.g., $2,000,000,000 or $1.5B)
+   - Numerical thresholds (e.g., $2,000,000,000 or $1.5Bn)
    - Years or date conditions (e.g., before 2020)
    - Column names or labels (e.g., Rank, Peak, Worldwide gross)
    - Plot requirements (e.g., scatterplot, regression line)
