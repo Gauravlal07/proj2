@@ -198,7 +198,7 @@ def task_breakdown(task: str) -> str:
         task_clean = remove_example_output(task)
         task_clean = preprocess_prompt(task_clean)
 
-        api_key = os.getenv("AIPIPE_API_KEY")
+        api_key = os.getenv("AIPIPE_TOKEN")
         if not api_key:
             return "AIPIPE_API_KEY not set in environment."
 
