@@ -32,20 +32,13 @@ Follow these rules step-by-step:
        - Downscale if file > 100 KB.
        - Convert to Base64 string with prefix `data:image/png;base64,`.
 
-5. Implement error handling:
-   - If scraping or parsing fails, return:
-     ```python
-     answers = ["Error", "N/A", 0.0, ""]
-     ```
-   - Ensure the script still prints valid JSON.
 
-6. Output format must be exactly:
-   ```python
-   answers = [
-       int,         # Numerical count
-       str,         # Name/title
-       float,       # Rounded to 6 decimals
-       str          # Base64 PNG string
-   ]
+You must return the final output as a JSON array of exactly 4 elements:
+[
+    int,    # numerical count
+    string, # film name
+    float,  # correlation rounded to 6 decimals
+    string  # base64 PNG starting with "data:image/png;base64,"
+]
+Do not return Python code, explanations, or text. Return only the JSON array.
 
-   print(json.dumps(answers))
