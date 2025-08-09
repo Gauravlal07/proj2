@@ -1,0 +1,46 @@
+{
+  "id": "chatcmpl-BxZYxbhjLfDSF92kAdZG03QfsBNtH",
+  "object": "chat.completion",
+  "created": 1753537755,
+  "model": "gpt-4o-mini-2024-07-18",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_OjRi9mpZNKWlwjrrjw0XQkHq",
+            "type": "function",
+            "function": {
+              "name": "scrape_website",
+              "arguments": "{\"url\":\"https://en.wikipedia.org/wiki/List_of_highest-grossing_films\",\"output_file\":\"highest_grossing_films.html\"}"
+            }
+          }
+        ],
+        "refusal": null,
+        "annotations": []
+      },
+      "logprobs": null,
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 152,
+    "completion_tokens": 41,
+    "total_tokens": 193,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "audio_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    }
+  },
+  "service_tier": "default",
+  "system_fingerprint": "fp_34a54ae93c"
+}
