@@ -190,23 +190,19 @@ def compute_answers():
 # -----------------------
 def task_breakdown(task: str) -> str:
     """
-    Preprocesses the incoming task (removes example outputs / appends runtime instructions)
-    then calls Gemini and returns the response text.
+    Preprocesses the incoming task, then calls AI Pipe GPT-4.1 via the
+    OpenRouter-compatible endpoint, and returns the response text.
     """
     try:
         # Preprocess the task (remove example outputs and add explicit scrape instructions when appropriate)
         task_clean = remove_example_output(task)
         task_clean = preprocess_prompt(task_clean)
 
-        api_key = os.getenv("GEMINI_API_KEY")
+        api_key = os.getenv("AIPIPE_API_KEY")
         if not api_key:
-            # don't crash; return informative message
-            return "GEMINI_API_KEY not set in environment."
+            return "AIPIPE_API_KEY not set in environment."
 
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
-
-        # load the fixed prompt template for breakdowns (keeps separation of concerns)
+        # Load the fixed prompt template
         prompt_path = os.path.join("prompts", "abdul_task_breakdown.txt")
         if not os.path.exists(prompt_path):
             return f"Prompt file missing: {prompt_path}"
@@ -214,20 +210,41 @@ def task_breakdown(task: str) -> str:
         with open(prompt_path, "r", encoding="utf-8") as f:
             prompt_template = f.read()
 
-        # Combine preprocessed task + prompt template
-        contents = [task_clean.strip(), prompt_template.strip()]
+        # Combine into single user message
+        full_prompt = f"{task_clean.strip()}\n\n{prompt_template.strip()}"
 
-        response = model.generate_content(contents)
+        # AI Pipe API call
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "gpt-4.1",  # Or another model from AI Pipe/OpenRouter
+            "messages": [
+                {"role": "system", "content": "You are a helpful data analysis assistant."},
+                {"role": "user", "content": full_prompt}
+            ]
+        }
+        resp = requests.post(
+            "https://aipipe.org/openrouter/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+        resp.raise_for_status()
+        data = resp.json()
 
+        response_text = data["choices"][0]["message"]["content"]
+
+        # Save breakdown output
         out_path = "abdul_breaked_task.txt"
         with open(out_path, "w", encoding="utf-8") as f:
-            f.write(response.text)
+            f.write(response_text)
 
-        return response.text
+        return response_text
 
     except Exception as e:
         return f"Error during task breakdown: {str(e)}"
-
 
 # -----------------------
 # Endpoints
