@@ -2,6 +2,7 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 import os
 import requests
 import logging
@@ -31,6 +32,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Serve the `static/` directory as the site root (index.html will be served)
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 # -----------------------
 # AIPipe / task breakdown
