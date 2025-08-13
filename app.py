@@ -121,16 +121,18 @@ def preprocess_prompt(task: str) -> str:
 
 
 # ------------------------------------------------------------------------------------
-# AI Pipe (GPT-4.1 via OpenRouter-compatible endpoint)
+# ------------------------------------------------------------------------------------
+# AI Pipe (GPT-4.1 via OpenRouter-compatible endpoint) with retry handling
 # ------------------------------------------------------------------------------------
 AIPIPE_ENDPOINT = "https://aipipe.org/openrouter/v1/chat/completions"
-AIPIPE_MODEL = "gpt-4.1"  # set here if you want to change centrally
-
+AIPIPE_MODEL = "gpt-4.1"
+MAX_RETRIES = 3
+RETRY_DELAY = 5  # seconds
 
 def task_breakdown(task: str, *, system_prompt: str = "You are a helpful data analysis assistant.") -> str:
     """
     Sends the preprocessed task to AI Pipe GPT-4.1 and returns the raw assistant text.
-    We persist response to 'abdul_breaked_task.txt' for debugging.
+    Retries on 429 Too Many Requests errors.
     """
     try:
         task_clean = preprocess_prompt(task)
@@ -139,7 +141,7 @@ def task_breakdown(task: str, *, system_prompt: str = "You are a helpful data an
             logger.error("AIPIPE_TOKEN is missing in environment.")
             return "AIPIPE_API_KEY not set in environment."
 
-        # Optional: load your prompt template if present
+        # Load optional prompt template
         prompt_path = os.path.join("prompts", "abdul_task_breakdown.txt")
         user_payload = task_clean
         if os.path.exists(prompt_path):
@@ -147,8 +149,8 @@ def task_breakdown(task: str, *, system_prompt: str = "You are a helpful data an
                 with open(prompt_path, "r", encoding="utf-8") as f:
                     prompt_template = f.read().strip()
                 user_payload = f"{task_clean.strip()}\n\n{prompt_template}"
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to load prompt template: {e}")
 
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -162,24 +164,42 @@ def task_breakdown(task: str, *, system_prompt: str = "You are a helpful data an
             ],
         }
 
-        resp = requests.post(AIPIPE_ENDPOINT, headers=headers, json=payload, timeout=60)
-        resp.raise_for_status()
+        # Retry loop
+        for attempt in range(1, MAX_RETRIES + 1):
+            resp = requests.post(AIPIPE_ENDPOINT, headers=headers, json=payload, timeout=60)
+            if resp.status_code == 429:
+                logger.warning(f"Rate limit hit (429). Retry {attempt}/{MAX_RETRIES} after {RETRY_DELAY}s...")
+                time.sleep(RETRY_DELAY)
+                continue
+            try:
+                resp.raise_for_status()
+            except Exception:
+                logger.error(f"Request failed: {resp.text}")
+                raise
+            break  # success
+
+        else:
+            return "Error: Rate limit exceeded after multiple retries."
+
+        # Parse AI Pipe response
         data = resp.json()
         if "choices" not in data or not data["choices"]:
             return "No response from AI Pipe."
         content = data["choices"][0]["message"]["content"]
 
-        # Write raw for debugging
+        # Save raw response for debugging
         try:
             with open("abdul_breaked_task.txt", "w", encoding="utf-8") as f:
                 f.write(content or "")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to write abdul_breaked_task.txt: {e}")
 
         return content or ""
+
     except Exception as e:
         logger.exception("task_breakdown failed")
         return f"Error during task breakdown: {e}"
+
 
 
 # ------------------------------------------------------------------------------------
