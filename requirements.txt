@@ -5,6 +5,7 @@ google-generativeai
 numpy
 pandas
 matplotlib
+dotenv
 beautifulsoup4
 requests
 lxml
