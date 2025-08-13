@@ -512,55 +512,32 @@ async def upload_form(request: Request):
 @app.post("/analyze", response_class=HTMLResponse)
 async def analyze_file(request: Request, questions_txt: UploadFile = File(...), mode: str = Form("auto")):
     """
-    Browser form handler:
-      - Saves uploaded 'question.txt'
-      - If it looks like the Wikipedia task, runs the verified Python solver (or LLM if forced)
-      - Renders 'analysis_result.html' with JSON (string)
+    Browser form handler — forwards file to /api/ so both behave identically.
     """
-    temp_path = None
     try:
-        # Save temp
-        temp_path = f"temp_{questions_txt.filename}"
-        with open(temp_path, "wb") as buffer:
-            shutil.copyfileobj(questions_txt.file, buffer)
+        # Read the uploaded file
+        file_bytes = await questions_txt.read()
 
-        with open(temp_path, "r", encoding="utf-8") as f:
-            text = f.read().strip()
+        # Forward it to our own /api/
+        api_url = str(request.base_url) + "api/"
+        files = {"file": (questions_txt.filename, file_bytes, "text/plain")}
+        params = {"mode": mode}
+        r = requests.post(api_url, files=files, params=params, timeout=60)
+        r.raise_for_status()
+        result_array = r.json()
 
-        # Decide execution mode
-        if mode not in {"auto", "python", "llm"}:
-            mode = "auto"
-
-        if mode == "python" or (mode == "auto" and looks_like_highest_grossing_task(text)):
-            logger.info("Using VERIFIED PYTHON solver for /analyze")
-            answers = compute_highest_grossing_answers()
-        else:
-            logger.info("Using LLM via AI Pipe for /analyze")
-            raw = task_breakdown(text)
-            parsed = parse_llm_json_array(raw)
-            if parsed is None and looks_like_highest_grossing_task(text):
-                # fallback to verified
-                answers = compute_highest_grossing_answers()
-            else:
-                answers = normalize_answer_array(parsed or ["Error", "N/A", 0.0, ""])
-
-        # Render result page with the array shown verbatim
+        # Render result page
         return templates.TemplateResponse(
             "analysis_result.html",
-            {"request": request, "result_json": json.dumps(answers)}
+            {"request": request, "result_json": json.dumps(result_array)}
         )
+
     except Exception as e:
-        logger.exception("/analyze failed")
         return templates.TemplateResponse(
             "analysis_result.html",
             {"request": request, "error": str(e)}
         )
-    finally:
-        if temp_path and os.path.exists(temp_path):
-            try:
-                os.remove(temp_path)
-            except Exception:
-                pass
+
 
 
 # ------------------------------------------------------------------------------------
