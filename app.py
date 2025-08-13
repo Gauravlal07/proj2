@@ -1,8 +1,11 @@
 # app.py
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 import os
 import requests
 import logging
@@ -431,6 +434,63 @@ async def highest_grossing():
     except Exception as e:
         logger.exception("highest_grossing endpoint error")
         return JSONResponse(content=["Error", "N/A", 0.0, ""])
+@app.post("/api/")
+async def upload_file(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        text = content.decode("utf-8").strip()
+        if not text:
+            return JSONResponse(status_code=400, content={"error": "Uploaded file is empty."})
+        breakdown = task_breakdown(text)  # keep your existing function call
+        return {"filename": file.filename, "content": text, "breakdown": breakdown}
+    except Exception as e:
+        logger.exception("upload_file error")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+# === NEW WEB ROUTES ===
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    """Show homepage with links."""
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/upload", response_class=HTMLResponse)
+async def upload_form(request: Request):
+    """Show upload form."""
+    return templates.TemplateResponse("upload.html", {"request": request})
+
+@app.post("/analyze", response_class=HTMLResponse)
+async def analyze_file(request: Request, questions_txt: UploadFile = File(...)):
+    """
+    Accept uploaded file, run existing task_breakdown, show results.
+    """
+    try:
+        # Save temp file
+        file_path = f"temp_{questions_txt.filename}"
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(questions_txt.file, buffer)
+
+        # Read text
+        with open(file_path, "r", encoding="utf-8") as f:
+            text = f.read().strip()
+
+        # Call existing function
+        breakdown = task_breakdown(text)
+
+        # Remove temp file
+        os.remove(file_path)
+
+        return templates.TemplateResponse(
+            "analysis_result.html",
+            {"request": request, "filename": questions_txt.filename, "content": text, "breakdown": json.dumps(breakdown, indent=2)}
+        )
+
+    except Exception as e:
+        logger.exception("analyze_file error")
+        return templates.TemplateResponse(
+            "analysis_result.html",
+            {"request": request, "error": str(e)}
+        )
+
 
 
 if __name__ == "__main__":
