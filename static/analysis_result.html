@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Analysis Result</title>
+</head>
+<body>
+    <h1>Analysis Result</h1>
+    {% if error %}
+        <p style="color:red;">Error: {{ error }}</p>
+    {% else %}
+        <h3>File: {{ filename }}</h3>
+        <pre>{{ breakdown }}</pre>
+    {% endif %}
+    <a href="/">Go Home</a>
+</body>
+</html>
