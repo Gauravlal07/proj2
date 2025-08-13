@@ -9,5 +9,6 @@ beautifulsoup4
 requests
 lxml
 pillow
+jinja2
 
 
