@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload</title>
+</head>
+<body>
+    <h1>Upload question.txt</h1>
+    <form action="/analyze" method="post" enctype="multipart/form-data">
+        <input type="file" name="questions_txt" accept=".txt" required>
+        <button type="submit">Analyze</button>
+    </form>
+</body>
+</html>
