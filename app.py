@@ -511,32 +511,28 @@ async def upload_form(request: Request):
 
 @app.post("/analyze", response_class=HTMLResponse)
 async def analyze_file(request: Request, questions_txt: UploadFile = File(...), mode: str = Form("auto")):
-    """
-    Browser form handler — forwards file to /api/ so both behave identically.
-    """
     try:
-        # Read the uploaded file
-        file_bytes = await questions_txt.read()
+        # Read uploaded file
+        content = await questions_txt.read()
+        text = content.decode("utf-8").strip()
+        if not text:
+            return templates.TemplateResponse(
+                "analysis_result.html", {"request": request, "error": "Uploaded file is empty."}
+            )
 
-        # Forward it to our own /api/
-        api_url = str(request.base_url) + "api/"
-        files = {"file": (questions_txt.filename, file_bytes, "text/plain")}
-        params = {"mode": mode}
-        r = requests.post(api_url, files=files, params=params, timeout=60)
-        r.raise_for_status()
-        result_array = r.json()
+        # Reuse the same internal logic as /api/
+        breakdown = task_breakdown(text)
 
-        # Render result page
         return templates.TemplateResponse(
             "analysis_result.html",
-            {"request": request, "result_json": json.dumps(result_array)}
+            {"request": request, "result_json": json.dumps(breakdown)}
         )
 
     except Exception as e:
         return templates.TemplateResponse(
-            "analysis_result.html",
-            {"request": request, "error": str(e)}
+            "analysis_result.html", {"request": request, "error": str(e)}
         )
+
 
 
 
