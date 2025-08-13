@@ -520,41 +520,33 @@ def normalize_answer_array(ans: List[Any]) -> List[Any]:
 # ------------------------------------------------------------------------------------
 # Routes: Web pages
 # ------------------------------------------------------------------------------------
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
-
-@app.get("/upload", response_class=HTMLResponse)
-async def upload_form(request: Request):
-    return templates.TemplateResponse("upload.html", {"request": request})
-
 @app.post("/analyze", response_class=HTMLResponse)
 async def analyze_file(request: Request, questions_txt: UploadFile = File(...)):
     try:
-        # Read file content
-        text = (await questions_txt.read()).decode("utf-8").strip()
-        if not text:
-            return templates.TemplateResponse("analysis_result.html", {
-                "request": request,
-                "error": "Uploaded file is empty.",
-                "result": None
-            })
+        # Read uploaded file
+        content = (await questions_txt.read()).decode("utf-8").strip()
+        if not content:
+            result = ["Error: Empty file", None, None, None]
+        else:
+            breakdown_raw = task_breakdown(content)
 
-        breakdown = task_breakdown(text)  # This returns your [4, "Titanic", ...]
+            # If breakdown_raw is JSON-like, parse it
+            try:
+                result = json.loads(breakdown_raw)
+            except json.JSONDecodeError:
+                result = [breakdown_raw]  # return as single element list
 
-        return templates.TemplateResponse("analysis_result.html", {
-            "request": request,
-            "error": None,
-            "result": breakdown
-        })
+        return templates.TemplateResponse(
+            "analysis_result.html",
+            {"request": request, "result": result}
+        )
 
     except Exception as e:
         logger.exception("Error in /analyze")
-        return templates.TemplateResponse("analysis_result.html", {
-            "request": request,
-            "error": str(e),
-            "result": None
-        })
+        return templates.TemplateResponse(
+            "analysis_result.html",
+            {"request": request, "result": [f"Error: {e}", None, None, None]}
+        )
 
 # ------------------------------------------------------------------------------------
 # Routes: API endpoints (curl + programmatic)
